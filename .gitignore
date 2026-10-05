@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.venv/
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+.ipynb_checkpoints/
+
+# Dataset (your voice recordings)
+data/
+
+# Trained models (can be regenerated)
+*.pkl
+*.joblib
