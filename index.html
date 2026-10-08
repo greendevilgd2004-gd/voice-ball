@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>توپ صوتی</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1d2433;
+    --panel: #262f42;
+    --line: #3a4560;
+    --text: #eef0f5;
+    --muted: #9aa5bd;
+    --sq-light: #e9dcc3;
+    --sq-dark: #5b7c99;
+    --ball: #f2562b;
+    --goal: #ffc83d;
+    --ok: #46d19a;
+    --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Vazirmatn", Tahoma, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: minmax(280px, 560px) 300px;
+    gap: 24px;
+    width: 100%; max-width: 920px;
+    align-items: start;
+  }
+  @media (max-width: 760px) { .app { grid-template-columns: 1fr; } }
+
+  /* ---------- Board ---------- */
+  .board-wrap { direction: ltr; }
+  .board {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    border: 6px solid #0f1522;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 18px 40px rgba(0,0,0,.45);
+  }
+  .sq.light { background: var(--sq-light); }
+  .sq.dark  { background: var(--sq-dark); }
+
+  .goal, .ball {
+    position: absolute;
+    width: 12.5%; height: 12.5%;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .goal::after {
+    content: ""; width: 38%; height: 38%;
+    background: var(--goal);
+    transform: rotate(45deg);
+    border-radius: 3px;
+    box-shadow: 0 0 0 4px rgba(255,200,61,.3);
+  }
+  .goal.pop::after { animation: pop .4s ease-out; }
+  @keyframes pop { from { transform: rotate(45deg) scale(2.2); opacity: .2; } }
+
+  .ball { transition: left var(--step, .4s) linear, top var(--step, .4s) linear; }
+  .ball.nowrap { transition: none; }
+  .ball i {
+    width: 66%; height: 66%; border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #ffb199 0, var(--ball) 40%, #a82a0c 100%);
+    box-shadow: 0 6px 8px rgba(0,0,0,.4);
+  }
+  .ball.bump i { animation: bump .25s; }
+  @keyframes bump { 30% { transform: scale(1.15, .8); } 60% { transform: scale(.9, 1.1); } }
+
+  /* ---------- Side panel ---------- */
+  .side { display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font-size: 28px; font-weight: 800; }
+  .sub { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .label { color: var(--muted); font-size: 13px; }
+
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); display: inline-block; margin-inline-end: 6px; }
+  .dot.on { background: var(--ok); }
+  .dot.listening { background: var(--ok); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(70,209,154,0); } 0% { box-shadow: 0 0 0 0 rgba(70,209,154,.6); } }
+
+  .meter { height: 6px; background: var(--line); border-radius: 3px; margin-top: 10px; overflow: hidden; direction: ltr; }
+  .meter b { display: block; height: 100%; width: 0; background: var(--ok); transition: width .08s; }
+
+  .heard { font-size: 34px; font-weight: 800; min-height: 52px; margin: 6px 0 2px; }
+  .conf { font-size: 13px; color: var(--muted); }
+
+  .score { font-size: 30px; font-weight: 800; color: var(--goal); }
+
+  .cmds { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+  .cmds span { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font-size: 14px; text-align: center; }
+  .cmds span.hit { border-color: var(--ok); color: var(--ok); }
+
+  .log { max-height: 120px; overflow-y: auto; margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+  .log li { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+
+  button {
+    font: inherit; cursor: pointer; color: var(--text);
+    background: transparent; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 14px;
+  }
+  button:hover { border-color: var(--muted); }
+  :focus-visible { outline: 2px solid var(--goal); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ball, .ball i, .goal::after, .dot { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+
+  <section class="board-wrap" aria-label="صفحه بازی">
+    <div class="board" id="board">
+      <div class="goal" id="goal"></div>
+      <div class="ball" id="ball"><i></i></div>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div>
+      <h1>توپ صوتی</h1>
+      <p class="sub">با صدای خودت توپ را به مربع زرد برسان.</p>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <span><span class="dot" id="dot"></span><span id="statusText">قطع از سرور</span></span>
+        <button id="reconnect" type="button">اتصال مجدد</button>
+      </div>
+      <div class="meter" aria-hidden="true"><b id="level"></b></div>
+    </div>
+
+    <div class="card">
+      <div class="label">آخرین دستور شنیده‌شده</div>
+      <div class="heard" id="heard">—</div>
+      <div class="conf" id="conf">اطمینان: —</div>
+      <div class="conf">جهت فعلی: <b id="dirNow">—</b></div>
+    </div>
+
+    <div class="card row">
+      <div>
+        <div class="label">امتیاز</div>
+        <div class="score" id="score">۰</div>
+      </div>
+      <button id="reset" type="button">شروع دوباره</button>
+    </div>
+
+    <div class="card">
+      <div class="label">دستورها</div>
+      <div class="cmds" id="cmds">
+        <span data-c="up">بالا</span>
+        <span data-c="down">پایین</span>
+        <span data-c="left">چپ</span>
+        <span data-c="right">راست</span>
+      </div>
+      <ul class="log" id="log"></ul>
+    </div>
+  </aside>
+</main>
+
+<script>
+/* =====================================================
+   تنظیمات – این‌ها را با بک‌اند خودتان هماهنگ کنید
+   ===================================================== */
+const CONFIG = {
+  WS_URL: "ws://localhost:8765",   // آدرس WebSocket بک‌اند
+  SIZE: 8,                         // ابعاد صفحه (N×N)
+  MIN_CONFIDENCE: 0.6,             // دستورهای با اطمینان کمتر نادیده گرفته می‌شوند
+  AUTO_RECONNECT_MS: 3000,
+  STEP_MS: 700,                    // هر چند میلی‌ثانیه توپ یک خانه جلو برود (کمتر = سریع‌تر)
+  START_DIR: "right",             // جهت اولیه‌ی توپ
+  WRAP: true                       // خروج از یک طرف = ورود از طرف مقابل
+};
+
+/* هر چیزی که بک‌اند بفرستد (فارسی یا انگلیسی) به یکی از این پنج دستور نگاشت می‌شود */
+const ALIASES = {
+  up: ["up", "بالا"],
+  down: ["down", "پایین"],
+  left: ["left", "چپ"],
+  right: ["right", "راست"],
+};
+const FA_NAME = { up: "بالا", down: "پایین", left: "چپ", right: "راست" };
+const DELTA = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
+
+/* =====================================================
+   وضعیت بازی
+   ===================================================== */
+const N = CONFIG.SIZE;
+const state = { r: 0, c: 0, dir: CONFIG.START_DIR, goal: { r: 0, c: 0 }, score: 0 };
+document.documentElement.style.setProperty("--step", CONFIG.STEP_MS + "ms");
+
+const $ = id => document.getElementById(id);
+const boardEl = $("board"), ballEl = $("ball"), goalEl = $("goal");
+const toFa = n => String(n).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]);
+
+/* ساخت خانه‌های شطرنجی */
+for (let r = 0; r < N; r++) {
+  for (let c = 0; c < N; c++) {
+    const sq = document.createElement("div");
+    sq.className = "sq " + ((r + c) % 2 === 0 ? "light" : "dark");
+    boardEl.insertBefore(sq, goalEl);
+  }
+}
+boardEl.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+boardEl.style.gridTemplateRows = `repeat(${N}, 1fr)`;
+[goalEl, ballEl].forEach(el => { el.style.width = el.style.height = 100 / N + "%"; });
+
+function place(el, r, c) {
+  el.style.left = (c * 100 / N) + "%";
+  el.style.top = (r * 100 / N) + "%";
+}
+
+function newGoal() {
+  let r, c;
+  do {
+    r = Math.floor(Math.random() * N);
+    c = Math.floor(Math.random() * N);
+  } while (r === state.r && c === state.c);
+  state.goal = { r, c };
+  place(goalEl, r, c);
+  goalEl.classList.remove("pop"); void goalEl.offsetWidth; goalEl.classList.add("pop");
+}
+
+function resetGame() {
+  state.r = Math.floor(N / 2); state.c = Math.floor(N / 2);
+  state.score = 0;
+  state.dir = CONFIG.START_DIR;
+  $("dirNow").textContent = FA_NAME[state.dir];
+  ballEl.classList.add("nowrap"); void ballEl.offsetWidth;
+  $("score").textContent = toFa(0);
+  place(ballEl, state.r, state.c);
+  void ballEl.offsetWidth; ballEl.classList.remove("nowrap");
+  newGoal();
+}
+
+/* =====================================================
+   اجرای دستور
+   ===================================================== */
+function normalize(raw) {
+  const w = String(raw).trim().toLowerCase();
+  for (const [cmd, names] of Object.entries(ALIASES)) {
+    if (names.includes(w)) return cmd;
+  }
+  return null;
+}
+
+function addLog(text) {
+  const li = document.createElement("li");
+  li.textContent = text;
+  const log = $("log");
+  log.prepend(li);
+  while (log.children.length > 30) log.lastChild.remove();
+}
+
+/* این تابع نقطه‌ی اتصال اصلی بک‌اند به بازی است */
+function handleCommand(raw, confidence = 1, source = "voice") {
+  const cmd = normalize(raw);
+  if (!cmd) { addLog(`نامعتبر: «${raw}»`); return; }
+
+  $("heard").textContent = FA_NAME[cmd];
+  $("conf").textContent = "اطمینان: " + toFa(Math.round(confidence * 100)) + "٪" + (source === "keyboard" ? " (کیبورد)" : "");
+  document.querySelectorAll("#cmds span").forEach(s => s.classList.toggle("hit", s.dataset.c === cmd));
+
+  if (confidence < CONFIG.MIN_CONFIDENCE) {
+    addLog(`${FA_NAME[cmd]} نادیده گرفته شد (اطمینان کم)`);
+    return;
+  }
+
+  // دستور فقط جهت حرکت را عوض می‌کند؛ خود حرکت را حلقه‌ی step انجام می‌دهد
+  state.dir = cmd;
+  $("dirNow").textContent = FA_NAME[cmd];
+  addLog(FA_NAME[cmd]);
+}
+window.handleCommand = handleCommand;   // برای تست از کنسول: handleCommand("left")
+
+/* =====================================================
+   حرکت مداوم توپ + خروج از یک طرف و ورود از طرف مقابل
+   ===================================================== */
+function step() {
+  const [dr, dc] = DELTA[state.dir];
+
+  let nr = state.r + dr, nc = state.c + dc;
+  let wrapped = false;
+
+  if (nr < 0 || nr >= N || nc < 0 || nc >= N) {
+    if (!CONFIG.WRAP) return;                  // اگر WRAP خاموش باشد توپ کنار دیوار می‌ماند
+    nr = (nr + N) % N;
+    nc = (nc + N) % N;
+    wrapped = true;
+  }
+
+  state.r = nr; state.c = nc;
+
+  if (wrapped) {
+    // بدون انیمیشن به طرف مقابل منتقل شود تا توپ وسط صفحه نچرخد
+    ballEl.classList.add("nowrap");
+    place(ballEl, nr, nc);
+    void ballEl.offsetWidth;
+    ballEl.classList.remove("nowrap");
+  } else {
+    place(ballEl, nr, nc);
+  }
+
+  if (nr === state.goal.r && nc === state.goal.c) {
+    state.score++;
+    $("score").textContent = toFa(state.score);
+    addLog("امتیاز گرفتی!");
+    newGoal();
+  }
+}
+setInterval(step, CONFIG.STEP_MS);
+
+/* =====================================================
+   اتصال به بک‌اند با WebSocket
+   پیام‌های قابل قبول:
+   {"command":"left","confidence":0.92}
+   {"type":"status","state":"listening"}      // یا "idle"
+   {"type":"level","value":0.4}               // بین ۰ تا ۱، برای نوار حجم صدا
+   یا فقط متن ساده مثل: left
+   ===================================================== */
+let ws, retryTimer;
+
+function setStatus(mode, text) {
+  const dot = $("dot");
+  dot.className = "dot" + (mode ? " " + mode : "");
+  $("statusText").textContent = text;
+}
+
+function connect() {
+  clearTimeout(retryTimer);
+  try { ws && ws.close(); } catch (_) {}
+  setStatus("", "در حال اتصال…");
+  ws = new WebSocket(CONFIG.WS_URL);
+
+  ws.onopen = () => setStatus("on", "متصل به بک‌اند");
+  ws.onclose = () => {
+    setStatus("", "قطع از سرور");
+    retryTimer = setTimeout(connect, CONFIG.AUTO_RECONNECT_MS);
+  };
+  ws.onerror = () => ws.close();
+  ws.onmessage = ev => {
+    let msg = ev.data;
+    try { msg = JSON.parse(ev.data); } catch (_) { handleCommand(msg); return; }
+
+    if (msg.type === "status") {
+      if (msg.state === "listening") setStatus("listening", "در حال گوش دادن…");
+      else setStatus("on", "متصل به بک‌اند");
+    } else if (msg.type === "level") {
+      $("level").style.width = Math.min(100, Math.max(0, msg.value * 100)) + "%";
+    } else if (msg.command !== undefined) {
+      handleCommand(msg.command, msg.confidence ?? 1);
+    }
+  };
+}
+
+/* =====================================================
+   کیبورد (برای تست بدون میکروفون)
+   ===================================================== */
+const KEYS = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
+window.addEventListener("keydown", e => {
+  if (KEYS[e.key]) { e.preventDefault(); handleCommand(KEYS[e.key], 1, "keyboard"); }
+});
+
+$("reset").onclick = resetGame;
+$("reconnect").onclick = connect;
+
+resetGame();
+connect();
+</script>
+</body>
+</html>
