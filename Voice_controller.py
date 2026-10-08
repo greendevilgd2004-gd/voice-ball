@@ -188,6 +188,7 @@ class VoiceController:
 
         if self.verbose:
             print(f"[voice] heard: {label} (confidence {conf:.2f})")
+        self.last_confidence = conf
         if label in COMMANDS and conf >= self.min_confidence:
             with self._lock:
                 self._command = label
