@@ -17,4 +17,3 @@ data/
 
 # Trained models (can be regenerated)
 *.pkl
-*.joblib
