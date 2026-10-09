@@ -54,7 +54,17 @@
   }
   .sq.light { background: var(--sq-light); }
   .sq.dark  { background: var(--sq-dark); }
+  .sq.warn { background: #e8a33d; animation: blink .4s infinite; }
+  @keyframes blink { 50% { background: #ff6b6b; } }
+  .sq.hole { background: #0b101b; box-shadow: inset 0 0 16px rgba(0,0,0,.9); }
 
+  .over {
+    position: absolute; inset: 0; z-index: 5;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    background: rgba(15,21,34,.82); direction: rtl;
+    font-size: clamp(24px, 6vw, 44px); font-weight: 800;
+  }
+  .over[hidden] { display: none; }
   .goal, .ball {
     position: absolute;
     width: 12.5%; height: 12.5%;
@@ -130,6 +140,10 @@
     <div class="board" id="board">
       <div class="goal" id="goal"></div>
       <div class="ball" id="ball"><i></i></div>
+        <div class="over" id="over" hidden>
+          <div>باختی!</div>
+          <div>امتیاز: <b id="overScore">۰</b></div>
+        </div>
     </div>
   </section>
 
@@ -186,7 +200,14 @@ const CONFIG = {
   AUTO_RECONNECT_MS: 3000,
   STEP_MS: 700,                    // هر چند میلی‌ثانیه توپ یک خانه جلو برود (کمتر = سریع‌تر)
   START_DIR: "right",             // جهت اولیه‌ی توپ
-  WRAP: true                       // خروج از یک طرف = ورود از طرف مقابل
+  WRAP: true,                       // خروج از یک طرف = ورود از طرف مقابل
+  HOLE_WARN_MS: 1500,        // چشمک زدن قبل از خالی شدن
+  HOLE_LIFETIME_MS: 5000,    // مدت خالی ماندن، بعد خودش پر می‌شود
+  HOLE_START_GAP_MS: 4000,   // فاصله‌ی بین خالی شدن خانه‌ها در امتیاز صفر
+  HOLE_MIN_GAP_MS: 1200,     // کمترین فاصله (سخت‌ترین حالت)
+  HOLE_GAP_STEP_MS: 500,     // با هر سطح، فاصله این‌قدر کم می‌شود
+  POINTS_PER_LEVEL: 3,       // هر چند امتیاز یک سطح
+  MAX_HOLES_RATIO: 0.25      // حداکثر نسبت خانه‌های غیرعادی به کل صفحه
 };
 
 /* هر چیزی که بک‌اند بفرستد (فارسی یا انگلیسی) به یکی از این پنج دستور نگاشت می‌شود */
@@ -203,18 +224,20 @@ const DELTA = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
    وضعیت بازی
    ===================================================== */
 const N = CONFIG.SIZE;
-const state = { r: 0, c: 0, dir: CONFIG.START_DIR, goal: { r: 0, c: 0 }, score: 0 };
+const state = { r: 0, c: 0, dir: CONFIG.START_DIR, goal: { r: 0, c: 0 }, score: 0, over: false };
 document.documentElement.style.setProperty("--step", CONFIG.STEP_MS + "ms");
 
 const $ = id => document.getElementById(id);
 const boardEl = $("board"), ballEl = $("ball"), goalEl = $("goal");
 const toFa = n => String(n).replace(/\d/g, d => "۰۱۲۳۴۵۶۷۸۹"[d]);
-
+const cells = [];
+const cellState = new Array(N * N).fill(0);   // 0 عادی، 1 چشمک، 2 خالی
 /* ساخت خانه‌های شطرنجی */
 for (let r = 0; r < N; r++) {
   for (let c = 0; c < N; c++) {
     const sq = document.createElement("div");
     sq.className = "sq " + ((r + c) % 2 === 0 ? "light" : "dark");
+    cells.push(sq);
     boardEl.insertBefore(sq, goalEl);
   }
 }
@@ -232,13 +255,80 @@ function newGoal() {
   do {
     r = Math.floor(Math.random() * N);
     c = Math.floor(Math.random() * N);
-  } while (r === state.r && c === state.c);
+  } while ((r === state.r && c === state.c) || cellState[r * N + c] !== 0);
   state.goal = { r, c };
   place(goalEl, r, c);
   goalEl.classList.remove("pop"); void goalEl.offsetWidth; goalEl.classList.add("pop");
 }
+/* =====================================================
+   خانه‌های خالی‌شونده (سخت‌تر شدن بازی)
+   ===================================================== */
+const timers = new Set();
+let holeTimer;
 
+function later(fn, ms) {
+  const id = setTimeout(() => { timers.delete(id); fn(); }, ms);
+  timers.add(id);
+}
+
+function setCell(i, s) {                      // 0 عادی، 1 چشمک، 2 خالی
+  cellState[i] = s;
+  cells[i].classList.toggle("warn", s === 1);
+  cells[i].classList.toggle("hole", s === 2);
+}
+
+function holeGap() {
+  const level = Math.floor(state.score / CONFIG.POINTS_PER_LEVEL);
+  return Math.max(CONFIG.HOLE_MIN_GAP_MS, CONFIG.HOLE_START_GAP_MS - level * CONFIG.HOLE_GAP_STEP_MS);
+}
+
+function spawnHole() {
+  const busy = cellState.filter(s => s !== 0).length;
+  if (busy >= Math.floor(N * N * CONFIG.MAX_HOLES_RATIO)) return;
+  const free = [];
+  for (let i = 0; i < N * N; i++) {
+    const r = Math.floor(i / N), c = i % N;
+    if (cellState[i] !== 0) continue;
+    if (r === state.r && c === state.c) continue;
+    if (r === state.goal.r && c === state.goal.c) continue;
+    free.push(i);
+  }
+  if (!free.length) return;
+  const i = free[Math.floor(Math.random() * free.length)];
+  setCell(i, 1);
+  later(() => {
+    if (Math.floor(i / N) === state.r && i % N === state.c) { setCell(i, 0); return; }  // توپ روی آن است: لغو
+    setCell(i, 2);
+    later(() => setCell(i, 0), CONFIG.HOLE_LIFETIME_MS);
+  }, CONFIG.HOLE_WARN_MS);
+}
+
+function scheduleHole() {
+  clearTimeout(holeTimer);
+  holeTimer = setTimeout(() => { spawnHole(); scheduleHole(); }, holeGap());
+}
+
+function clearHoles() {
+  timers.forEach(clearTimeout);
+  timers.clear();
+  clearTimeout(holeTimer);
+  for (let i = 0; i < N * N; i++) setCell(i, 0);
+}
+
+function gameOver() {
+  state.over = true;
+  clearTimeout(holeTimer);
+  timers.forEach(clearTimeout);
+  timers.clear();
+  $("overScore").textContent = toFa(state.score);
+  $("over").hidden = false;
+  addLog("باختی! امتیاز: " + toFa(state.score));
+}
+//=======//
 function resetGame() {
+  clearHoles();
+  state.over = false;
+  $("over").hidden = true;
   state.r = Math.floor(N / 2); state.c = Math.floor(N / 2);
   state.score = 0;
   state.dir = CONFIG.START_DIR;
@@ -248,6 +338,7 @@ function resetGame() {
   place(ballEl, state.r, state.c);
   void ballEl.offsetWidth; ballEl.classList.remove("nowrap");
   newGoal();
+  scheduleHole();
 }
 
 /* =====================================================
@@ -294,6 +385,7 @@ window.handleCommand = handleCommand;   // برای تست از کنسول: hand
    حرکت مداوم توپ + خروج از یک طرف و ورود از طرف مقابل
    ===================================================== */
 function step() {
+  if (state.over) return;
   const [dr, dc] = DELTA[state.dir];
 
   let nr = state.r + dr, nc = state.c + dc;
@@ -318,6 +410,8 @@ function step() {
     place(ballEl, nr, nc);
   }
 
+  if (cellState[nr * N + nc] === 2) { gameOver(); return; }
+  
   if (nr === state.goal.r && nc === state.goal.c) {
     state.score++;
     $("score").textContent = toFa(state.score);
