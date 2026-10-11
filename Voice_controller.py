@@ -146,7 +146,10 @@ class VoiceController:
             if collecting:
                 if len(history) - onset_idx >= post:
                     clip = self._cut_clip(history, onset_idx, pre, post)
-                    self._classify(clip, rate)
+                    try:
+                        self._classify(clip, rate)
+                    except Exception as e:
+                        print("[voice] classification error:", e)
                     collecting = False
                     armed = False
                     quiet = 0

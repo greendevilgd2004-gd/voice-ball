@@ -27,7 +27,8 @@ READY_TEXT = "Voice server running"
 
 
 def newest_sample_time():
-    return max((p.stat().st_mtime for p in DATA.rglob("*.wav")), default=0)
+    files = list(DATA.rglob("*.wav")) + [HERE / "features.py", HERE / "train_model.py"]
+    return max((p.stat().st_mtime for p in files if p.exists()), default=0)
 
 
 def ensure_model(skip_training):
