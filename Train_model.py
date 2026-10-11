@@ -25,7 +25,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
-from features import extract_features
+from features import align_clip, extract_features
 
 matplotlib.use("Agg")  # save figures to file, no window needed
 import matplotlib.pyplot as plt  # noqa: E402
@@ -49,7 +49,7 @@ def load_dataset():
                 continue
             if signal.ndim > 1:          # stereo -> mono
                 signal = signal[:, 0]
-            X.append(extract_features(signal))
+            X.append(extract_features(align_clip(signal)))
             y.append(label)
         print(f"{label:8s} {len(files)} files")
     return np.array(X), np.array(y)

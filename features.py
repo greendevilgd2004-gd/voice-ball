@@ -14,6 +14,8 @@ N_SAMPLES = SAMPLE_RATE          # exactly 1 second
 N_MFCC = 13
 FRAME_LENGTH = 400               # 25 ms window
 HOP_LENGTH = 160                 # 10 ms step
+PRE_SECONDS = 0.3     # باید با voice_controller.py یکی باشد
+POST_SECONDS = 0.5    # باید با voice_controller.py یکی باشد
 
 
 def to_float(signal):
@@ -41,3 +43,25 @@ def extract_features(signal):
         mfcc.mean(axis=1), mfcc.std(axis=1),
         delta.mean(axis=1), delta.std(axis=1),
     ])
+
+
+
+def align_clip(signal, onset_rms=800.0):
+    """Cut a recorded clip the same way the live controller does."""
+    signal = np.asarray(signal)
+    block = int(0.02 * SAMPLE_RATE)
+    pre = int(PRE_SECONDS * SAMPLE_RATE)
+    post = int(POST_SECONDS * SAMPLE_RATE)
+    x = signal.astype(np.float64)
+    onset = None
+    for i in range(0, len(x) - block + 1, block):
+        if np.sqrt(np.mean(x[i:i + block] ** 2)) > onset_rms:
+            onset = i
+            break
+    if onset is None:                      # nothing loud: keep the start of the clip
+        return signal[: pre + post]
+    start = onset - pre
+    clip = signal[max(start, 0): onset + post]
+    if start < 0:
+        clip = np.concatenate([np.zeros(-start, dtype=signal.dtype), clip])
+    return clip

@@ -42,7 +42,7 @@ COMMANDS = ("up", "down", "left", "right")
 
 BLOCK_SECONDS = 0.02   # microphone is read in 20 ms blocks
 PRE_SECONDS = 0.3      # audio kept from BEFORE the detected word start
-POST_SECONDS = 0.7     # audio kept AFTER the detected word start
+POST_SECONDS = 0.5     # audio kept AFTER the detected word start
 
 
 class VoiceController:
@@ -72,6 +72,7 @@ class VoiceController:
         self._worker = None
         self._running = False
         self._rate = SAMPLE_RATE
+        extract_features(np.zeros(SAMPLE_RATE, dtype=np.int16))   # warm-up
 
     # ---------- public API ----------
     def start(self):
@@ -112,6 +113,7 @@ class VoiceController:
                     samplerate=rate, channels=1, dtype="int16",
                     blocksize=int(rate * BLOCK_SECONDS),
                     device=self.device, callback=self._on_audio,
+                    latency="low",
                 )
                 self._rate = rate
                 return stream

@@ -375,9 +375,15 @@ function handleCommand(raw, confidence = 1, source = "voice") {
   }
 
   // دستور فقط جهت حرکت را عوض می‌کند؛ خود حرکت را حلقه‌ی step انجام می‌دهد
+  const changed = cmd !== state.dir;
   state.dir = cmd;
   $("dirNow").textContent = FA_NAME[cmd];
   addLog(FA_NAME[cmd]);
+  if (changed) {                       // بلافاصله یک گام برو و زمان‌سنج را از نو شروع کن
+    step();
+    clearInterval(stepTimer);
+    stepTimer = setInterval(step, CONFIG.STEP_MS);
+  }
 }
 window.handleCommand = handleCommand;   // برای تست از کنسول: handleCommand("left")
 
@@ -419,7 +425,7 @@ function step() {
     newGoal();
   }
 }
-setInterval(step, CONFIG.STEP_MS);
+let stepTimer = setInterval(step, CONFIG.STEP_MS);
 
 /* =====================================================
    اتصال به بک‌اند با WebSocket
