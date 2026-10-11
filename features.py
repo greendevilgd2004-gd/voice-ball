@@ -15,7 +15,7 @@ N_MFCC = 13
 FRAME_LENGTH = 400               # 25 ms window
 HOP_LENGTH = 160                 # 10 ms step
 PRE_SECONDS = 0.3     # باید با voice_controller.py یکی باشد
-POST_SECONDS = 0.5    # باید با voice_controller.py یکی باشد
+POST_SECONDS = 0.7    # باید با voice_controller.py یکی باشد
 
 
 def to_float(signal):
@@ -39,10 +39,13 @@ def extract_features(signal):
     )
     delta = librosa.feature.delta(mfcc)
 
-    return np.concatenate([
-        mfcc.mean(axis=1), mfcc.std(axis=1),
-        delta.mean(axis=1), delta.std(axis=1),
-    ])
+    start = int(PRE_SECONDS * SAMPLE_RATE / HOP_LENGTH)           # first frame of the word region
+    parts = np.array_split(np.arange(start, mfcc.shape[1]), 3)    # 3 time segments
+    return np.concatenate(
+        [mfcc[:, p].mean(axis=1) for p in parts]
+        + [delta[:, p].mean(axis=1) for p in parts]
+        + [mfcc.std(axis=1), delta.std(axis=1)]
+    )
 
 
 
